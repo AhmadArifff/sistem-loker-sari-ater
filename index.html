@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LockerVault — Manajemen Loker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0e0f13;
+      --surface: #161820;
+      --card: #1d1f27;
+      --border: #2a2d38;
+      --accent: #f0b429;
+      --accent2: #3ecf8e;
+      --danger: #f44f5a;
+      --text: #e8eaf0;
+      --muted: #6b7280;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    h1, h2, h3, .font-display { font-family: 'Syne', sans-serif; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* Noise overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.4;
+    }
+
+    .content { position: relative; z-index: 1; }
+
+    /* Cards */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      transition: all 0.2s;
+    }
+    .card:hover { border-color: #3a3d50; }
+
+    /* Stat card accent line */
+    .stat-card { position: relative; overflow: hidden; }
+    .stat-card::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      border-radius: 2px 2px 0 0;
+    }
+    .stat-total::after { background: var(--accent); }
+    .stat-terisi::after { background: var(--accent2); }
+    .stat-kosong::after { background: var(--danger); }
+
+    /* Table styles */
+    .tbl-wrap {
+      overflow-x: auto;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--card);
+    }
+    .tbl-wrap::-webkit-scrollbar { height: 6px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+    }
+
+    thead tr {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    thead th {
+      padding: 13px 16px;
+      text-align: left;
+      font-family: 'Syne', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--muted);
+      white-space: nowrap;
+      user-select: none;
+      cursor: pointer;
+    }
+    thead th:hover { color: var(--accent); }
+    thead th.sort-asc::after { content: ' ↑'; color: var(--accent); }
+    thead th.sort-desc::after { content: ' ↓'; color: var(--accent); }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+      animation: rowIn 0.25s ease both;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(255,255,255,0.03); }
+
+    @keyframes rowIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    td {
+      padding: 12px 16px;
+      vertical-align: middle;
+      color: var(--text);
+    }
+
+    .td-no {
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .locker-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    .td-name {
+      font-weight: 500;
+      min-width: 140px;
+    }
+    .td-name .empty { color: var(--muted); font-style: italic; font-size: 12px; }
+    .td-note { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+
+    /* Row highlight by status */
+    tbody tr.row-terisi td:first-child {
+      border-left: 3px solid var(--accent2);
+    }
+    tbody tr.row-kosong td:first-child {
+      border-left: 3px solid var(--danger);
+    }
+
+    /* Actions column */
+    .td-actions { white-space: nowrap; }
+
+    /* Date cell */
+    .td-date {
+      white-space: nowrap;
+      min-width: 200px;
+    }
+    .date-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 8px;
+      font-family: 'Syne', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+    }
+    .date-chip.created {
+      background: rgba(62, 207, 142, 0.10);
+      border: 1px solid rgba(62, 207, 142, 0.25);
+      color: var(--accent2);
+    }
+    .date-chip.updated {
+      background: rgba(240, 180, 41, 0.10);
+      border: 1px solid rgba(240, 180, 41, 0.25);
+      color: var(--accent);
+    }
+    .date-chip .chip-prefix {
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      opacity: 0.75;
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .date-chip.updated .chip-prefix {
+      background: rgba(240, 180, 41, 0.2);
+    }
+    /* Modal info box */
+    .modal-info-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 14px;
+      display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 20px;
+    }
+    .modal-info-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin-bottom: 3px; }
+    .modal-info-value { font-size: 13px; font-weight: 500; color: var(--text); }
+
+    /* Badge */
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.5px;
+    }
+    .badge-terisi { background: rgba(62,207,142,0.15); color: var(--accent2); border: 1px solid rgba(62,207,142,0.3); }
+    .badge-kosong { background: rgba(244,79,90,0.12); color: var(--danger); border: 1px solid rgba(244,79,90,0.25); }
+    .badge-L { background: rgba(99,179,237,0.12); color: #63b3ed; border: 1px solid rgba(99,179,237,0.25); }
+    .badge-P { background: rgba(252,182,216,0.12); color: #fbb6ce; border: 1px solid rgba(252,182,216,0.25); }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(6px);
+      z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      padding: 16px;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .modal-overlay.active { opacity: 1; pointer-events: all; }
+    .modal-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      width: 100%; max-width: 560px;
+      transform: scale(0.95) translateY(20px);
+      transition: transform 0.25s ease;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal-overlay.active .modal-box { transform: scale(1) translateY(0); }
+
+    /* Input */
+    .field {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: var(--text);
+      width: 100%;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+    .field:focus { border-color: var(--accent); }
+    .field option { background: var(--card); }
+
+    label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 18px; border-radius: 10px;
+      font-family: 'Syne', sans-serif; font-weight: 600; font-size: 14px;
+      cursor: pointer; border: none; transition: all 0.15s;
+    }
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-primary:hover { background: #e0a020; transform: translateY(-1px); }
+    .btn-danger { background: rgba(244,79,90,0.15); color: var(--danger); border: 1px solid rgba(244,79,90,0.3); }
+    .btn-danger:hover { background: rgba(244,79,90,0.25); }
+    .btn-ghost { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: #3a3d50; }
+    .btn-icon {
+      width: 32px; height: 32px;
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface); cursor: pointer;
+      transition: all 0.15s; color: var(--muted);
+    }
+    .btn-icon:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-icon.del:hover { border-color: var(--danger); color: var(--danger); }
+
+    /* Toast */
+    #toast-container {
+      position: fixed; bottom: 24px; right: 24px;
+      z-index: 999; display: flex; flex-direction: column; gap: 8px;
+    }
+    .toast {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 18px; border-radius: 12px;
+      background: var(--card); border: 1px solid var(--border);
+      font-size: 14px; font-weight: 500;
+      animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s both;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      min-width: 220px;
+    }
+    @keyframes toastIn { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateX(40px); } }
+
+    /* Filter pills */
+    .pill {
+      padding: 6px 14px; border-radius: 999px;
+      font-size: 13px; font-weight: 500;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      cursor: pointer; transition: all 0.15s;
+      color: var(--muted);
+    }
+    .pill.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+    /* Search */
+    .search-wrap { position: relative; }
+    .search-wrap svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+    .search-wrap input { padding-left: 38px; }
+
+    /* Empty state */
+    .empty-state { text-align: center; padding: 48px 24px; }
+    .empty-state svg { margin: 0 auto 16px; opacity: 0.2; }
+
+    /* Diagonal header accent */
+    .header-accent {
+      position: absolute;
+      top: -60px; right: -40px;
+      width: 280px; height: 280px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(240,180,41,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* Confirm dialog */
+    #confirm-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(6px);
+      z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    #confirm-overlay.active { opacity: 1; pointer-events: all; }
+    #confirm-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px;
+      max-width: 380px;
+      width: 90%;
+      transform: scale(0.95);
+      transition: transform 0.2s;
+    }
+    #confirm-overlay.active #confirm-box { transform: scale(1); }
+  </style>
+</head>
+<body>
+<div class="content">
+
+  <!-- Header -->
+  <header class="relative overflow-hidden" style="background: linear-gradient(135deg, #161820 0%, #1a1c27 100%); border-bottom: 1px solid var(--border);">
+    <div class="header-accent"></div>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-3 mb-1">
+          <div class="w-9 h-9 bg-white rounded-lg overflow-hidden flex items-center justify-center shadow-sm">
+            <img src="logo.jpg" alt="Logo" class="w-6 h-6 object-contain">
+          </div>
+          <h1 class="font-display text-2xl font-800 tracking-tight" style="color:var(--text)">Locker Karyawan Sari Ater</h1>
+        </div>
+        <p style="color:var(--muted);font-size:13px;">Sistem Manajemen Loker Karyawan</p>
+      </div>
+      <div class="flex flex-wrap gap-2 items-center">
+        <!-- Import JSON (hidden input) -->
+        <input type="file" id="import-file-input" accept=".json" style="display:none;" onchange="importJSON(event)" />
+
+        <button class="btn btn-ghost" onclick="document.getElementById('import-file-input').click()" title="Import data dari file JSON">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Import JSON
+        </button>
+
+        <button class="btn btn-ghost" onclick="exportJSON()" id="btn-export" title="Export seluruh data ke loker-data.json">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export JSON
+        </button>
+
+        <button class="btn btn-primary" onclick="openModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Tambah Loker
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+
+    <!-- Stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <div class="card stat-card stat-total p-5">
+        <div style="color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Total Loker</div>
+        <div class="font-display text-4xl font-800" id="stat-total" style="color:var(--accent)">0</div>
+      </div>
+      <div class="card stat-card stat-terisi p-5">
+        <div style="color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Terisi</div>
+        <div class="font-display text-4xl font-800" id="stat-terisi" style="color:var(--accent2)">0</div>
+      </div>
+      <div class="card stat-card stat-kosong p-5">
+        <div style="color:var(--muted);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Kosong</div>
+        <div class="font-display text-4xl font-800" id="stat-kosong" style="color:var(--danger)">0</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card p-4 mb-6">
+      <div class="flex flex-col sm:flex-row gap-3">
+        <!-- Search -->
+        <div class="search-wrap flex-1">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="field" type="text" id="search-input" placeholder="Cari nama karyawan..." oninput="applyFilters()" />
+        </div>
+        <!-- Department filter -->
+        <div>
+          <select class="field" id="filter-dept" onchange="applyFilters()" style="width:auto;min-width:180px;">
+            <option value="">Semua Departemen</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Gender & Status pills -->
+      <div class="flex flex-wrap gap-2 mt-3">
+        <button class="pill active" data-filter="gender" data-val="" onclick="setPill(this,'gender')">Semua Gender</button>
+        <button class="pill" data-filter="gender" data-val="L" onclick="setPill(this,'gender')">♂ Laki-laki</button>
+        <button class="pill" data-filter="gender" data-val="P" onclick="setPill(this,'gender')">♀ Perempuan</button>
+        <div style="width:1px;background:var(--border);margin:0 4px;"></div>
+        <button class="pill active" data-filter="status" data-val="" onclick="setPill(this,'status')">Semua Status</button>
+        <button class="pill" data-filter="status" data-val="TERISI" onclick="setPill(this,'status')">Terisi</button>
+        <button class="pill" data-filter="status" data-val="KOSONG" onclick="setPill(this,'status')">Kosong</button>
+      </div>
+    </div>
+
+    <!-- Table info bar -->
+    <div class="flex items-center justify-between mb-3 px-1">
+      <div class="font-display font-700 text-sm" style="color:var(--muted);">
+        <span id="result-count">0</span> Loker Ditampilkan
+      </div>
+      <div style="font-size:12px;color:var(--muted);">Klik header kolom untuk mengurutkan</div>
+    </div>
+
+    <!-- Table -->
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="px-4 py-2 whitespace-nowrap cursor-pointer" onclick="sortBy('lockerNumber')">No. Loker</th>
+            <th class="px-4 py-2 whitespace-nowrap cursor-pointer" onclick="sortBy('gender')">Gender</th>
+            <th class="px-4 py-2 whitespace-nowrap cursor-pointer" onclick="sortBy('keySerial')">Serial Kunci</th>
+            <th class="px-4 py-2 whitespace-nowrap cursor-pointer" onclick="sortBy('employeeName')">Nama Karyawan</th>
+            <th class="px-4 py-2 whitespace-nowrap cursor-pointer" onclick="sortBy('position')">Jabatan</th>
+            <th class="px-4 py-2 whitespace-nowrap cursor-pointer" onclick="sortBy('department')">Departemen</th>
+            <th class="px-4 py-2 whitespace-nowrap">Catatan</th>
+            <th class="px-4 py-2 whitespace-nowrap cursor-pointer" onclick="sortBy('status')">Status</th>
+            <th class="px-4 py-2 whitespace-nowrap cursor-pointer" onclick="sortBy('createdAt')">Tanggal</th>
+            <th class="px-4 py-2 whitespace-nowrap text-center">Aksi</th>
+          </tr>
+        </thead>
+        <tbody class="px-4 py-2 whitespace-nowrap cursor-pointer" id="loker-list"></tbody>
+      </table>
+      <div id="empty-state" class="empty-state" style="display:none;">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="18" rx="2"/><rect x="14" y="3" width="7" height="18" rx="2"/><circle cx="6.5" cy="12" r="1"/><circle cx="17.5" cy="12" r="1"/></svg>
+        <p class="font-display text-lg font-600" id="empty-title" style="color:var(--muted);margin-bottom:4px;">Belum ada data loker</p>
+        <p style="color:var(--muted);font-size:13px;" id="empty-sub">Tambah loker baru atau import file <strong>loker-data.json</strong> yang sudah ada</p>
+        <div style="display:flex;gap:10px;justify-content:center;margin-top:20px;" id="empty-actions">
+          <button class="btn btn-ghost" style="font-size:13px;" onclick="document.getElementById('import-file-input').click()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import JSON
+          </button>
+          <button class="btn btn-primary" style="font-size:13px;" onclick="openModal()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Tambah Loker
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ================== MODAL ================== -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalOutside(event)">
+  <div class="modal-box p-6" id="modal-box">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="font-display text-xl font-700" id="modal-title">Tambah Loker</h2>
+      <button class="btn-icon" onclick="closeModal()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <!-- Timestamp info (hanya tampil saat edit) -->
+    <div class="modal-info-box" id="modal-timestamp" style="display:none;">
+      <div class="modal-info-item">
+        <div class="modal-info-label">📅 Dibuat</div>
+        <div class="modal-info-value" id="modal-created-at">—</div>
+      </div>
+      <div class="modal-info-item">
+        <div class="modal-info-label">🔄 Terakhir Diperbarui</div>
+        <div class="modal-info-value" id="modal-updated-at">—</div>
+      </div>
+      <div class="modal-info-item">
+        <div class="modal-info-label">🆔 ID Loker</div>
+        <div class="modal-info-value" id="modal-loker-id" style="font-family:'Syne',sans-serif;font-size:11px;color:var(--muted);">—</div>
+      </div>
+    </div>
+
+    <form id="loker-form" onsubmit="submitForm(event)">
+      <input type="hidden" id="f-id" />
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="block mb-1">No. Loker *</label>
+          <input class="field" type="text" id="f-lockerNumber" placeholder="ex: L-001" required />
+        </div>
+        <div>
+          <label class="block mb-1">Serial Kunci *</label>
+          <input class="field" type="text" id="f-keySerial" placeholder="ex: K-1234" required />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="block mb-1">Gender *</label>
+          <select class="field" id="f-gender" required>
+            <option value="">Pilih Gender</option>
+            <option value="L">Laki-laki (L)</option>
+            <option value="P">Perempuan (P)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block mb-1">Status *</label>
+          <select class="field" id="f-status" required onchange="toggleEmployee()">
+            <option value="KOSONG">KOSONG</option>
+            <option value="TERISI">TERISI</option>
+          </select>
+        </div>
+      </div>
+      <div id="employee-section">
+        <div class="mb-4">
+          <label class="block mb-1">Nama Karyawan</label>
+          <input class="field" type="text" id="f-employeeName" placeholder="Nama lengkap karyawan" />
+        </div>
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block mb-1">Jabatan</label>
+            <input class="field" type="text" id="f-position" placeholder="ex: Staff, Manager" />
+          </div>
+          <div>
+            <label class="block mb-1">Departemen</label>
+            <input class="field" type="text" id="f-department" placeholder="ex: HR, Finance" />
+          </div>
+        </div>
+      </div>
+      <div class="mb-6">
+        <label class="block mb-1">Catatan</label>
+        <textarea class="field" id="f-note" rows="2" placeholder="Catatan tambahan..."></textarea>
+      </div>
+      <div class="flex gap-3 justify-end">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Batal</button>
+        <button type="submit" class="btn btn-primary" id="btn-submit">Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ================== CONFIRM ================== -->
+<div id="confirm-overlay" onclick="cancelConfirm(event)">
+  <div id="confirm-box">
+    <div class="font-display text-lg font-700 mb-2">Hapus Loker?</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:24px;">Data loker ini akan dihapus permanen dan tidak dapat dikembalikan.</p>
+    <div class="flex gap-3 justify-end">
+      <button class="btn btn-ghost" onclick="cancelConfirm()">Batal</button>
+      <button class="btn btn-danger" id="btn-confirm-del">Ya, Hapus</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================== TOAST ================== -->
+<div id="toast-container"></div>
+
+<script>
+// ============ DATA ============
+const STORAGE_KEY = 'lockervault_data';
+const JSON_FILENAME = 'loker-data.json';
+
+let data = [];
+let filters = { gender: '', status: '', dept: '', search: '' };
+let confirmCallback = null;
+
+// ============ INIT ============
+// Saat pertama buka: load dari LocalStorage jika ada, jika tidak → kosong
+function init() {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    try { data = JSON.parse(stored); } catch(e) { data = []; }
+  } else {
+    data = [];
+  }
+  renderAll();
+  updateExportBtn();
+}
+
+// ============ EXPORT JSON ============
+function exportJSON() {
+  if (data.length === 0) {
+    toast('⚠️ Tidak ada data untuk diekspor!', 'warning');
+    return;
+  }
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = JSON_FILENAME;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(`📥 ${JSON_FILENAME} berhasil didownload! (${data.length} data)`, 'success');
+}
+
+// ============ IMPORT JSON ============
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (!file.name.endsWith('.json')) {
+    toast('❌ File harus berformat .json', 'danger');
+    event.target.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (!Array.isArray(parsed)) throw new Error('Format tidak valid');
+      // Validasi minimal struktur
+      const required = ['id','gender','lockerNumber','keySerial','status'];
+      const valid = parsed.every(item => required.every(k => k in item));
+      if (!valid) throw new Error('Struktur data tidak sesuai');
+      // Pastikan semua item punya timestamp (backward compatible)
+      const now = new Date().toISOString();
+      data = parsed.map(item => ({
+        ...item,
+        createdAt: item.createdAt || now,
+        updatedAt: item.updatedAt || item.createdAt || now,
+      }));
+      save();
+      renderAll();
+      updateExportBtn();
+      toast(`✅ Import berhasil! ${data.length} data loker dimuat dari ${file.name}`, 'success');
+    } catch(err) {
+      toast(`❌ Gagal import: ${err.message}`, 'danger');
+    }
+    event.target.value = ''; // reset input agar bisa import ulang file yang sama
+  };
+  reader.readAsText(file);
+}
+
+// Update tampilan tombol export (disable jika tidak ada data)
+function updateExportBtn() {
+  const btn = document.getElementById('btn-export');
+  if (!btn) return;
+  btn.style.opacity = data.length === 0 ? '0.45' : '1';
+  btn.title = data.length === 0 ? 'Tidak ada data untuk diekspor' : `Export ${data.length} data ke ${JSON_FILENAME}`;
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+// ============ RENDER ============
+function renderAll() {
+  updateStats();
+  updateDeptFilter();
+  renderList();
+  updateExportBtn();
+}
+
+function updateStats() {
+  document.getElementById('stat-total').textContent = data.length;
+  document.getElementById('stat-terisi').textContent = data.filter(d=>d.status==='TERISI').length;
+  document.getElementById('stat-kosong').textContent = data.filter(d=>d.status==='KOSONG').length;
+}
+
+function updateDeptFilter() {
+  const depts = [...new Set(data.map(d=>d.department).filter(Boolean))].sort();
+  const sel = document.getElementById('filter-dept');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Semua Departemen</option>' + depts.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('');
+  sel.value = cur;
+}
+
+function getFiltered() {
+  return data.filter(d => {
+    if (filters.gender && d.gender !== filters.gender) return false;
+    if (filters.status && d.status !== filters.status) return false;
+    if (filters.dept && d.department !== filters.dept) return false;
+    if (filters.search && !d.employeeName.toLowerCase().includes(filters.search.toLowerCase())) return false;
+    return true;
+  });
+}
+
+let sortKey = 'lockerNumber';
+let sortDir = 'asc';
+
+function sortBy(key) {
+  if (sortKey === key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  else { sortKey = key; sortDir = 'asc'; }
+  // Update header classes
+  document.querySelectorAll('thead th').forEach(th => {
+    th.classList.remove('sort-asc','sort-desc');
+  });
+  const ths = document.querySelectorAll('thead th');
+  const cols = ['lockerNumber','gender','keySerial','employeeName','position','department','_note','status','createdAt'];
+  const idx = cols.indexOf(key);
+  if (idx >= 0) ths[idx].classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+  renderList();
+}
+
+function renderList() {
+  const tbody = document.getElementById('loker-list');
+  const empty = document.getElementById('empty-state');
+  let filtered = getFiltered();
+
+  // Sort
+  filtered = filtered.sort((a,b) => {
+    let va = (a[sortKey]||'').toLowerCase();
+    let vb = (b[sortKey]||'').toLowerCase();
+    if (va < vb) return sortDir === 'asc' ? -1 : 1;
+    if (va > vb) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  document.getElementById('result-count').textContent = filtered.length;
+
+  if (!filtered.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    const isFiltered = filters.gender || filters.status || filters.dept || filters.search;
+    const noDataAtAll = data.length === 0;
+    document.getElementById('empty-title').textContent = noDataAtAll ? 'Belum ada data loker' : 'Tidak ada loker ditemukan';
+    document.getElementById('empty-sub').innerHTML = noDataAtAll
+      ? 'Tambah loker baru atau import file <strong>loker-data.json</strong> yang sudah ada'
+      : 'Coba ubah atau reset filter pencarian';
+    document.getElementById('empty-actions').style.display = noDataAtAll ? 'flex' : 'none';
+    return;
+  }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = filtered.map((d, i) => `
+    <tr class="row-${d.status.toLowerCase()}" style="animation-delay:${i*20}ms">
+      <td>
+        <span class="locker-num">${esc(d.lockerNumber)}</span>
+      </td>
+      <td><span class="badge badge-${d.gender}">${d.gender === 'L' ? '♂ Laki-laki' : '♀ Perempuan'}</span></td>
+      <td style="font-family:'Syne',sans-serif;font-size:12px;color:var(--muted);font-weight:600;">${esc(d.keySerial)}</td>
+      <td class="td-name">${d.employeeName ? esc(d.employeeName) : '<span class="empty">— Tidak ada —</span>'}</td>
+      <td style="color:var(--muted);font-size:13px;">${d.position ? esc(d.position) : '<span style="color:var(--border)">—</span>'}</td>
+      <td>${d.department ? `<span style="background:rgba(240,180,41,0.08);border:1px solid rgba(240,180,41,0.2);color:var(--accent);padding:3px 10px;border-radius:6px;font-size:12px;font-weight:500;">${esc(d.department)}</span>` : '<span style="color:var(--border)">—</span>'}</td>
+      <td class="td-note" title="${esc(d.note)}">${d.note ? esc(d.note) : '<span style="color:var(--border)">—</span>'}</td>
+      <td><span class="badge badge-${d.status.toLowerCase()}">${d.status === 'TERISI' ? '● TERISI' : '○ KOSONG'}</span></td>
+      <td class="td-date">${renderDateCell(d.createdAt, d.updatedAt)}</td>
+      <td class="td-actions" style="text-align:center;">
+        <div style="display:inline-flex;gap:6px;">
+          <button class="btn-icon" title="Edit" onclick="openEdit('${d.id}')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="btn-icon del" title="Hapus" onclick="confirmDelete('${d.id}')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+// ============ FILTERS ============
+function setPill(el, type) {
+  document.querySelectorAll(`.pill[data-filter="${type}"]`).forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  filters[type] = el.dataset.val;
+  renderList();
+}
+
+function applyFilters() {
+  filters.search = document.getElementById('search-input').value;
+  filters.dept = document.getElementById('filter-dept').value;
+  renderList();
+}
+
+// ============ MODAL ============
+let editId = null;
+
+function openModal(id) {
+  editId = id || null;
+  document.getElementById('modal-title').textContent = id ? 'Edit Loker' : 'Tambah Loker';
+  document.getElementById('btn-submit').textContent = id ? 'Update' : 'Simpan';
+
+  if (id) {
+    const d = data.find(x=>x.id===id);
+    document.getElementById('f-id').value = d.id;
+    document.getElementById('f-lockerNumber').value = d.lockerNumber;
+    document.getElementById('f-keySerial').value = d.keySerial;
+    document.getElementById('f-gender').value = d.gender;
+    document.getElementById('f-status').value = d.status;
+    document.getElementById('f-employeeName').value = d.employeeName;
+    document.getElementById('f-position').value = d.position;
+    document.getElementById('f-department').value = d.department;
+    document.getElementById('f-note').value = d.note;
+    // Tampilkan info timestamp
+    document.getElementById('modal-timestamp').style.display = 'flex';
+    document.getElementById('modal-created-at').textContent = d.createdAt ? formatDateFull(d.createdAt) : '—';
+    document.getElementById('modal-updated-at').textContent = d.updatedAt ? formatDateFull(d.updatedAt) : '—';
+    document.getElementById('modal-loker-id').textContent = d.id;
+  } else {
+    document.getElementById('loker-form').reset();
+    document.getElementById('modal-timestamp').style.display = 'none';
+  }
+  toggleEmployee();
+  document.getElementById('modal-overlay').classList.add('active');
+}
+
+function openEdit(id) { openModal(id); }
+
+function closeModal() { document.getElementById('modal-overlay').classList.remove('active'); }
+function closeModalOutside(e) { if (e.target === document.getElementById('modal-overlay')) closeModal(); }
+
+function toggleEmployee() {
+  const status = document.getElementById('f-status').value;
+  const sec = document.getElementById('employee-section');
+  sec.style.opacity = status === 'KOSONG' ? '0.4' : '1';
+}
+
+function submitForm(e) {
+  e.preventDefault();
+  const now = new Date().toISOString();
+  const existing = editId ? data.find(d=>d.id===editId) : null;
+  const entry = {
+    id: editId || Date.now().toString(),
+    lockerNumber: document.getElementById('f-lockerNumber').value.trim(),
+    keySerial: document.getElementById('f-keySerial').value.trim(),
+    gender: document.getElementById('f-gender').value,
+    status: document.getElementById('f-status').value,
+    employeeName: document.getElementById('f-employeeName').value.trim(),
+    position: document.getElementById('f-position').value.trim(),
+    department: document.getElementById('f-department').value.trim(),
+    note: document.getElementById('f-note').value.trim(),
+    createdAt: existing ? existing.createdAt : now,
+    updatedAt: now,
+  };
+
+  if (editId) {
+    const idx = data.findIndex(d=>d.id===editId);
+    data[idx] = entry;
+    toast('✏️ Loker berhasil diperbarui!', 'success');
+  } else {
+    data.push(entry);
+    toast('✅ Loker berhasil ditambahkan!', 'success');
+  }
+
+  save();
+  closeModal();
+  renderAll();
+}
+
+// ============ DELETE ============
+function confirmDelete(id) {
+  document.getElementById('confirm-overlay').classList.add('active');
+  confirmCallback = () => deleteLoker(id);
+  document.getElementById('btn-confirm-del').onclick = () => {
+    confirmCallback && confirmCallback();
+    document.getElementById('confirm-overlay').classList.remove('active');
+  };
+}
+
+function cancelConfirm(e) {
+  if (!e || e.target === document.getElementById('confirm-overlay')) {
+    document.getElementById('confirm-overlay').classList.remove('active');
+    confirmCallback = null;
+  }
+}
+
+function deleteLoker(id) {
+  data = data.filter(d => d.id !== id);
+  save();
+  renderAll();
+  toast('🗑️ Loker berhasil dihapus!', 'danger');
+}
+
+// ============ TOAST ============
+function toast(msg, type='success') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast';
+  const colors = {
+    success: 'rgba(62,207,142,0.3)',
+    danger:  'rgba(244,79,90,0.3)',
+    warning: 'rgba(240,180,41,0.3)',
+  };
+  t.style.borderColor = colors[type] || colors.success;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3200);
+}
+
+// ============ DATE HELPERS ============
+const MONTHS_FULL_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+const DAYS_ID = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+
+// Format: dd-mm-yyyy hh:mm:ss
+function formatDMYHMS(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d)) return null;
+  const dd   = String(d.getDate()).padStart(2,'0');
+  const mm   = String(d.getMonth()+1).padStart(2,'0');
+  const yyyy = d.getFullYear();
+  const hh   = String(d.getHours()).padStart(2,'0');
+  const min  = String(d.getMinutes()).padStart(2,'0');
+  const ss   = String(d.getSeconds()).padStart(2,'0');
+  return `${dd}-${mm}-${yyyy} ${hh}:${min}:${ss}`;
+}
+
+// Format panjang untuk modal
+function formatDateFull(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return '—';
+  const day  = DAYS_ID[d.getDay()];
+  const dd   = String(d.getDate()).padStart(2,'0');
+  const mon  = MONTHS_FULL_ID[d.getMonth()];
+  const yyyy = d.getFullYear();
+  const hh   = String(d.getHours()).padStart(2,'0');
+  const min  = String(d.getMinutes()).padStart(2,'0');
+  const ss   = String(d.getSeconds()).padStart(2,'0');
+  return `${day}, ${dd} ${mon} ${yyyy} — ${hh}:${min}:${ss}`;
+}
+
+// Render satu kolom "Tanggal":
+// • Baru  → chip hijau  "dd-mm-yyyy hh:mm:ss"
+// • Edit  → chip kuning "Update dd-mm-yyyy hh:mm:ss"
+function renderDateCell(createdIso, updatedIso) {
+  const isUpdated = updatedIso && updatedIso !== createdIso;
+
+  if (isUpdated) {
+    const val = formatDMYHMS(updatedIso);
+    if (!val) return '<span style="color:var(--border)">—</span>';
+    return `<span class="date-chip updated">
+      <span class="chip-prefix">Update</span>${val}
+    </span>`;
+  } else {
+    const val = formatDMYHMS(createdIso);
+    if (!val) return '<span style="color:var(--border)">—</span>';
+    return `<span class="date-chip created">${val}</span>`;
+  }
+}
+
+// ============ UTIL ============
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ============ START ============
+init();
+</script>
+</body>
+</html>
